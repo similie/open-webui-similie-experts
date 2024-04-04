@@ -26,8 +26,8 @@ except ImportError:
     log.warning("dotenv not installed, skipping...")
 
 WEBUI_NAME = "Open WebUI"
-WEBUI_FAVICON_URL = "https://openwebui.com/favicon.png"
-shutil.copyfile("../build/favicon.png", "./static/favicon.png")
+WEBUI_FAVICON_URL = "https://openwebui.com/favicon.jpg"
+shutil.copyfile("../build/favicon.png", "./static/favicon.jpg")
 
 ####################################
 # ENV (dev,test,prod)

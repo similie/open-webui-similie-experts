@@ -18,7 +18,7 @@ const config = {
 		})
 	},
 	onwarn: (warning, handler) => {
-		const { code, _ } = warning;
+		const { code } = warning;
 		if (code === 'css-unused-selector') return;
 
 		handler(warning);

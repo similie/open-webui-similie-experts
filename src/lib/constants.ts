@@ -3,7 +3,7 @@ import { dev } from '$app/environment';
 
 export const APP_NAME = 'Open WebUI';
 export const WEBUI_BASE_URL = dev ? `http://${location.hostname}:8080` : ``;
-
+export const APP_VERSION = '0.1.0';
 export const WEBUI_API_BASE_URL = `${WEBUI_BASE_URL}/api/v1`;
 
 export const LITELLM_API_BASE_URL = `${WEBUI_BASE_URL}/litellm/api`;
