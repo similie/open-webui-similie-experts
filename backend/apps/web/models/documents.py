@@ -24,7 +24,7 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 class Document(Model):
     collection_name = CharField(unique=True)
-    name = CharField(unique=True)
+    name = CharField()
     title = CharField()
     filename = CharField()
     original_filename = CharField(null=True)
@@ -48,6 +48,17 @@ class DocumentModel(BaseModel):
     collection: Optional[str] = None
     path: Optional[str] = None
     timestamp: int  # timestamp in epoch
+
+
+class DocumentModelFromVector(BaseModel):
+    collection_name: str
+    name: str
+    title: str
+    filename: str
+    content: Optional[str] = None
+    original_filename: Optional[str] = None
+    collection: Optional[str] = None
+    path: Optional[str] = None
 
 
 ####################
@@ -87,6 +98,24 @@ class DocumentsTable:
     def __init__(self, db):
         self.db = db
         self.db.create_tables([Document])
+    
+    def createNewDocument(self, doc: DocumentModelFromVector, user_id: str) -> Optional[DocumentModel]:
+        document = DocumentModel(
+            **{
+                **doc,
+                "user_id": user_id,
+                "timestamp": int(time.time()),
+            }
+        )
+
+        try:
+            result = Document.create(**document.model_dump())
+            if result:
+                return document
+            else:
+                return None
+        except:
+            return None
         
     def get_file_location(self, doc: DocumentModel):
         if doc.path:

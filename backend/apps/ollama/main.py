@@ -611,7 +611,6 @@ async def generate_embeddings(
 ):
     if url_idx == None:
         model = form_data.model
-        print(" I AM AJSDFJG",len(app.state.MODELS), model)
         if len(app.state.MODELS) == 0:
             await get_all_models()
 
@@ -667,7 +666,6 @@ def generate_ollama_embeddings(
     
     if url_idx == None:
         model = form_data.model
-        print("MY MOSWL",len(app.state.MODELS), model, app.state.MODELS)
         if ":" not in model:
             model = f"{model}:latest"
 
@@ -681,9 +679,7 @@ def generate_ollama_embeddings(
 
     url = app.state.OLLAMA_BASE_URLS[url_idx]
     log.info(f"url: {url}")
-    print('MY URL', url)
     try:
-        print('form data', form_data)
         r = requests.request(
             method="POST",
             url=f"{url}/api/embeddings",
@@ -692,8 +688,7 @@ def generate_ollama_embeddings(
         r.raise_for_status()
 
         data = r.json()
-        print("my data", data)
-        log.info(f"generate_ollama_embeddings {data}")
+        # log.info(f"generate_ollama_embeddings {data}")
 
         if "embedding" in data:
             return data["embedding"]

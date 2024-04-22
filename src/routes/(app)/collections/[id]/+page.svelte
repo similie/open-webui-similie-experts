@@ -109,18 +109,21 @@
 		if (!sendFile) {
 			return unlock(sendLength);
 		}
-		return sendFileToVector(sendFile).then((res) => {
-			if (!res) {
+		return sendFileToVector(sendFile).then((document) => {
+			if (!document) {
 				return unlock(sendLength);
 			}
-			return createDocument(res).then((document) => {
-				if (!document) {
-					return unlock(sendLength);
-				}
-				documents.update((docs) => [...docs, document]);
-				unlock(sendLength);
-				return tick();
-			});
+			documents.update((docs) => [...docs, document]);
+			unlock(sendLength);
+			return tick();
+			// return createDocument(res).then((document) => {
+			// 	if (!document) {
+			// 		return unlock(sendLength);
+			// 	}
+			// 	documents.update((docs) => [...docs, document]);
+			// 	unlock(sendLength);
+			// 	return tick();
+			// });
 		});
 	};
 

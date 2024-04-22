@@ -37,7 +37,7 @@ from typing import Optional
 import mimetypes
 import uuid
 import json
-
+import re
 
 from apps.web.models.collections import build_collection_file_contents
 from apps.ollama.main import generate_ollama_embeddings, GenerateEmbeddingsForm, get_all_models
@@ -605,6 +605,18 @@ def get_loader(filename: str, file_content_type: str, file_path: str):
     return loader, known_type
 
 
+def transformDocumentName(fileName: str):
+    join = fileName.split('.')
+    separator = ''
+    return separator.join(join[:len(join)  - 1])
+
+def transformFileName(fileName: str):
+	lowerCaseFileName = fileName.lower()
+	sanitizedFileName =  re.sub(r'/[^\w\s]/g', '', lowerCaseFileName) # lowerCaseFileName.replace(/[^\w\s]/g, '')
+	return re.sub(r'/\s+/g', '-', sanitizedFileName) # sanitizedFileName.replace(/\s+/g, '-')
+
+
+
 @app.post("/doc")
 def store_doc(
     collection_name: Optional[str] = Form(None),
@@ -637,18 +649,48 @@ def store_doc(
 
         loader, known_type = get_loader(collection_content["filename"], file.content_type, collection_content["file_path"])
         data = loader.load()
+
         try:
-            result = store_data_in_vector_db(data,  collection_content["collection"])
-            if result:
-                return {
-                    "status": True,
-                    "collection_name": collection_name,
-                    "collection": collection_content["collection"],
-                    "original_filename": collection_content["original_filename"],
-                    "filename": collection_content["filename"],
-                    "known_type": known_type,
-                    "path": collection_content["file_path"]
-                }
+            
+            document = Documents.createNewDocument({
+                        "collection_name": collection_name,
+                        "collection": collection_content["collection"],
+                        "original_filename": collection_content["original_filename"],
+                        "filename": collection_content["filename"],
+                        "known_type": known_type,
+                        "path": collection_content["file_path"],
+                        "name": transformDocumentName(collection_content["original_filename"]),
+                        "title": transformFileName(collection_content["original_filename"])
+                    }, user.id)
+            if document == None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=ERROR_MESSAGES.FILE_EXISTS + ' ' +  collection_content["original_filename"],
+                )
+            
+            print('DOCUMENT', document)
+        
+            try:
+                result = store_data_in_vector_db(data,  collection_content["collection"])
+                if result:
+                    return {
+                        **document.model_dump(),
+                        "status": True,
+                         "known_type": known_type,
+                        
+                        # "collection_name": collection_name,
+                        # "collection": collection_content["collection"],
+                        # "original_filename": collection_content["original_filename"],
+                        # "filename": collection_content["filename"],
+                        # "known_type": known_type,
+                        # "path": collection_content["file_path"]
+                    }
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=e,
+                )
+            
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
