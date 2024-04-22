@@ -180,7 +180,7 @@
 	<EditDocModal bind:show={showEditDocModal} {selectedDoc} />
 {/key}
 
-<AddDocModal bind:show={showAddDocModal} />
+<AddDocModal bind:show={showAddDocModal} on:doc={uploadDoc} />
 
 <SettingsModal bind:show={showSettingsModal} />
 

@@ -8,13 +8,13 @@ from fastapi import (
     Form,
 )
 from fastapi.middleware.cors import CORSMiddleware
-import os, shutil, logging
+import os, shutil, logging, re
 
 from pathlib import Path
 from typing import List
 
-from sentence_transformers import SentenceTransformer
 from chromadb.utils import embedding_functions
+from chromadb.utils.batch_utils import create_batches
 
 from langchain_community.document_loaders import (
     WebBaseLoader,
@@ -24,7 +24,7 @@ from langchain_community.document_loaders import (
     BSHTMLLoader,
     Docx2txtLoader,
     UnstructuredEPubLoader,
-    UnstructuredWordDocumentLoader,
+    UnstructuredPowerPointLoader,
     UnstructuredMarkdownLoader,
     UnstructuredXMLLoader,
     UnstructuredRSTLoader,
@@ -39,13 +39,15 @@ import uuid
 import json
 
 
+from apps.web.models.collections import build_collection_file_contents
+
 from apps.web.models.documents import (
     Documents,
     DocumentForm,
     DocumentResponse,
 )
 
-from apps.rag.utils import query_doc, query_collection
+from apps.rag.utils import query_doc, query_collection, get_embedding_model_path
 
 from utils.misc import (
     calculate_sha256,
@@ -59,7 +61,8 @@ from config import (
     UPLOAD_DIR,
     DOCS_DIR,
     RAG_EMBEDDING_MODEL,
-    RAG_EMBEDDING_MODEL_DEVICE_TYPE,
+    RAG_EMBEDDING_MODEL_AUTO_UPDATE,
+    DEVICE_TYPE,
     CHROMA_CLIENT,
     CHUNK_SIZE,
     CHUNK_OVERLAP,
@@ -71,28 +74,25 @@ from constants import ERROR_MESSAGES
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["RAG"])
 
-#
-# if RAG_EMBEDDING_MODEL:
-#    sentence_transformer_ef = SentenceTransformer(
-#        model_name_or_path=RAG_EMBEDDING_MODEL,
-#        cache_folder=RAG_EMBEDDING_MODEL_DIR,
-#        device=RAG_EMBEDDING_MODEL_DEVICE_TYPE,
-#    )
-
-
 app = FastAPI()
 
 app.state.PDF_EXTRACT_IMAGES = False
 app.state.CHUNK_SIZE = CHUNK_SIZE
 app.state.CHUNK_OVERLAP = CHUNK_OVERLAP
 app.state.RAG_TEMPLATE = RAG_TEMPLATE
+
+
 app.state.RAG_EMBEDDING_MODEL = RAG_EMBEDDING_MODEL
+
+
 app.state.TOP_K = 4
 
 app.state.sentence_transformer_ef = (
     embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name=app.state.RAG_EMBEDDING_MODEL,
-        device=RAG_EMBEDDING_MODEL_DEVICE_TYPE,
+        model_name=get_embedding_model_path(
+            app.state.RAG_EMBEDDING_MODEL, RAG_EMBEDDING_MODEL_AUTO_UPDATE
+        ),
+        device=DEVICE_TYPE,
     )
 )
 
@@ -143,18 +143,33 @@ class EmbeddingModelUpdateForm(BaseModel):
 async def update_embedding_model(
     form_data: EmbeddingModelUpdateForm, user=Depends(get_admin_user)
 ):
-    app.state.RAG_EMBEDDING_MODEL = form_data.embedding_model
-    app.state.sentence_transformer_ef = (
-        embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name=app.state.RAG_EMBEDDING_MODEL,
-            device=RAG_EMBEDDING_MODEL_DEVICE_TYPE,
-        )
+
+    log.info(
+        f"Updating embedding model: {app.state.RAG_EMBEDDING_MODEL} to {form_data.embedding_model}"
     )
 
-    return {
-        "status": True,
-        "embedding_model": app.state.RAG_EMBEDDING_MODEL,
-    }
+    try:
+        sentence_transformer_ef = (
+            embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name=get_embedding_model_path(form_data.embedding_model, True),
+                device=DEVICE_TYPE,
+            )
+        )
+
+        app.state.RAG_EMBEDDING_MODEL = form_data.embedding_model
+        app.state.sentence_transformer_ef = sentence_transformer_ef
+
+        return {
+            "status": True,
+            "embedding_model": app.state.RAG_EMBEDDING_MODEL,
+        }
+
+    except Exception as e:
+        log.exception(f"Problem updating embedding model: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ERROR_MESSAGES.DEFAULT(e),
+        )
 
 
 @app.get("/config")
@@ -278,9 +293,9 @@ def store_web(form_data: StoreWebForm, user=Depends(get_current_user)):
     try:
         loader = WebBaseLoader(form_data.url)
         data = loader.load()
-
+    
         collection_name = form_data.collection_name
-        if collection_name == "":
+        if collection_name == "" or collection_name == None:
             collection_name = calculate_sha256_string(form_data.url)[:63]
 
         store_data_in_vector_db(data, collection_name, overwrite=True)
@@ -328,22 +343,29 @@ def store_docs_in_vector_db(docs, collection_name, overwrite: bool = False) -> b
 
     texts = [doc.page_content for doc in docs]
     metadatas = [doc.metadata for doc in docs]
-
+    
     try:
+        
         if overwrite:
             for collection in CHROMA_CLIENT.list_collections():
                 if collection_name == collection.name:
                     log.info(f"deleting existing collection {collection_name}")
                     CHROMA_CLIENT.delete_collection(name=collection_name)
-
-        collection = CHROMA_CLIENT.create_collection(
+                    
+        collection = CHROMA_CLIENT.get_or_create_collection(
             name=collection_name,
             embedding_function=app.state.sentence_transformer_ef,
         )
+       
 
-        collection.add(
-            documents=texts, metadatas=metadatas, ids=[str(uuid.uuid1()) for _ in texts]
-        )
+        for batch in create_batches(
+            api=CHROMA_CLIENT,
+            ids=[str(uuid.uuid1()) for _ in texts],
+            metadatas=metadatas,
+            documents=texts,
+        ):
+            collection.add(*batch)
+
         return True
     except Exception as e:
         log.exception(e)
@@ -401,7 +423,7 @@ def get_loader(filename: str, file_content_type: str, file_path: str):
         "vue",
         "svelte",
     ]
-
+    print(file_ext, file_content_type)
     if file_ext == "pdf":
         loader = PyPDFLoader(file_path, extract_images=app.state.PDF_EXTRACT_IMAGES)
     elif file_ext == "csv":
@@ -416,6 +438,10 @@ def get_loader(filename: str, file_content_type: str, file_path: str):
         loader = UnstructuredMarkdownLoader(file_path)
     elif file_content_type == "application/epub+zip":
         loader = UnstructuredEPubLoader(file_path)
+    elif (file_content_type == "application/vnd.ms-powerpoint"
+        or file_content_type == 'application/vnd.openxmlformats-officedocument.presentationml.presentation' 
+        or file_ext in ["ppt", "pptx"]):
+        loader = UnstructuredPowerPointLoader(file_path)
     elif (
         file_content_type
         == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -448,47 +474,38 @@ def store_doc(
 
     log.info(f"file.content_type: {file.content_type}")
     try:
-        is_valid_filename = True
-        unsanitized_filename = file.filename
-        if not unsanitized_filename.isascii():
-            is_valid_filename = False
-
-        unvalidated_file_path = f"{UPLOAD_DIR}/{unsanitized_filename}"
-        dereferenced_file_path = str(Path(unvalidated_file_path).resolve(strict=False))
-        if not dereferenced_file_path.startswith(UPLOAD_DIR):
-            is_valid_filename = False
-
-        if is_valid_filename:
-            file_path = dereferenced_file_path
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ERROR_MESSAGES.DEFAULT(),
-            )
-
-        filename = file.filename
+        
+        collection_content = build_collection_file_contents(file.filename, collection_name)
         contents = file.file.read()
-        with open(file_path, "wb") as f:
+        with open(collection_content["file_path"], "wb") as f:
             f.write(contents)
             f.close()
 
-        f = open(file_path, "rb")
-        if collection_name == None:
-            collection_name = calculate_sha256(f)[:63]
+        f = open(collection_content["file_path"], "rb")
+        if collection_content["collection"] == None:
+            collection_content["collection"] =  calculate_sha256(f)[:63] 
+            collection_name = collection_content["collection"]
+            try:
+                CHROMA_CLIENT.delete_collection(name=collection_name)
+            except:
+                pass
+        else:
+            collection_name = calculate_sha256(f)[:63]  
         f.close()
 
-        loader, known_type = get_loader(file.filename, file.content_type, file_path)
+        loader, known_type = get_loader(collection_content["filename"], file.content_type, collection_content["file_path"])
         data = loader.load()
-
         try:
-            result = store_data_in_vector_db(data, collection_name)
-
+            result = store_data_in_vector_db(data,  collection_content["collection"])
             if result:
                 return {
                     "status": True,
                     "collection_name": collection_name,
-                    "filename": filename,
+                    "collection": collection_content["collection"],
+                    "original_filename": collection_content["original_filename"],
+                    "filename": collection_content["filename"],
                     "known_type": known_type,
+                    "path": collection_content["file_path"]
                 }
         except Exception as e:
             raise HTTPException(

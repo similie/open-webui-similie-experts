@@ -1,3 +1,5 @@
+import type { ICollection } from '$lib/apis/collections';
+import type { IDocuments } from '$lib/apis/documents';
 import { APP_NAME } from '$lib/constants';
 import { writable } from 'svelte/store';
 
@@ -18,21 +20,11 @@ export const models = writable([]);
 
 export const modelfiles = writable([]);
 export const prompts = writable([]);
-export const documents = writable([
-	{
-		collection_name: 'collection_name',
-		filename: 'filename',
-		name: 'name',
-		title: 'title'
-	},
-	{
-		collection_name: 'collection_name1',
-		filename: 'filename1',
-		name: 'name1',
-		title: 'title1'
-	}
-]);
+export const documents = writable<IDocuments[]>([]);
 
+export const documentStore = writable<Record<string, IDocuments>>({});
+
+export const collectionsModels = writable<ICollection[]>([] as ICollection[]);
 export const settings = writable({});
 export const showSettings = writable(false);
 export const showChangelog = writable(false);

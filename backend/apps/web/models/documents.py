@@ -12,7 +12,7 @@ from apps.web.internal.db import DB
 
 import json
 
-from config import SRC_LOG_LEVELS
+from config import SRC_LOG_LEVELS, UPLOAD_DIR
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
@@ -27,10 +27,12 @@ class Document(Model):
     name = CharField(unique=True)
     title = CharField()
     filename = CharField()
+    original_filename = CharField(null=True)
     content = TextField(null=True)
     user_id = CharField()
     timestamp = DateField()
-
+    collection = CharField(null=True)
+    path =CharField(null=True)
     class Meta:
         database = DB
 
@@ -41,7 +43,10 @@ class DocumentModel(BaseModel):
     title: str
     filename: str
     content: Optional[str] = None
+    original_filename: Optional[str] = None
     user_id: str
+    collection: Optional[str] = None
+    path: Optional[str] = None
     timestamp: int  # timestamp in epoch
 
 
@@ -55,9 +60,12 @@ class DocumentResponse(BaseModel):
     name: str
     title: str
     filename: str
+    original_filename: Optional[str] = None
     content: Optional[dict] = None
     user_id: str
     timestamp: int  # timestamp in epoch
+    collection:  Optional[str] = None
+    path: Optional[str] = None
 
 
 class DocumentUpdateForm(BaseModel):
@@ -69,12 +77,41 @@ class DocumentForm(DocumentUpdateForm):
     collection_name: str
     filename: str
     content: Optional[str] = None
-
+    collection:  Optional[str] = None
+    path: Optional[str] = None
+    original_filename: Optional[str] = None
+    name: str
+    title: str
 
 class DocumentsTable:
     def __init__(self, db):
         self.db = db
         self.db.create_tables([Document])
+        
+    def get_file_location(self, doc: DocumentModel):
+        if doc.path:
+            return doc.path
+        elif doc.collection:
+            return f"{UPLOAD_DIR}/{doc.collection}/{doc.filename}"
+        return f"{UPLOAD_DIR}/{doc.filename}"
+        
+    def get_docs_by_filename(self, filenames: List[str]) -> List[DocumentModel]:
+        return [
+            DocumentModel(**model_to_dict(doc))
+            for doc in Document.select().where(Document.path << filenames)
+        ]
+        
+    def get_docs_by_collection_name(self, collection_name: str) -> List[DocumentModel]:
+        return [
+            DocumentModel(**model_to_dict(doc))
+            for doc in Document.select().where(Document.collection_name == collection_name)
+        ]
+        
+    def get_docs_by_collection(self, collection: str) -> List[DocumentModel]:
+        return [
+            DocumentModel(**model_to_dict(doc))
+            for doc in Document.select().where(Document.collection == collection)
+        ]
 
     def insert_new_doc(
         self, user_id: str, form_data: DocumentForm
@@ -150,6 +187,14 @@ class DocumentsTable:
     def delete_doc_by_name(self, name: str) -> bool:
         try:
             query = Document.delete().where((Document.name == name))
+            query.execute()  # Remove the rows, return number of rows removed.
+
+            return True
+        except:
+            return False
+    def delete_all_docs(self) -> bool:
+        try:
+            query = Document.delete()
             query.execute()  # Remove the rows, return number of rows removed.
 
             return True

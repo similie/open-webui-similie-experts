@@ -67,7 +67,6 @@
 
 	onMount(() => {
 		localModelfiles = JSON.parse(localStorage.getItem('modelfiles') ?? '[]');
-
 		if (localModelfiles) {
 			console.log(localModelfiles);
 		}

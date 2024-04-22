@@ -1,6 +1,8 @@
+import os
 import re
 import logging
 from typing import List
+from huggingface_hub import snapshot_download
 
 from config import SRC_LOG_LEVELS, CHROMA_CLIENT
 
@@ -30,9 +32,10 @@ def merge_and_sort_query_results(query_results, k):
     combined_distances = []
     combined_metadatas = []
     combined_documents = []
-
     # Combine data from each dictionary
     for data in query_results:
+        if not data:
+            continue
         combined_ids.extend(data["ids"][0])
         combined_distances.extend(data["distances"][0])
         combined_metadatas.extend(data["metadatas"][0])
@@ -74,7 +77,6 @@ def query_collection(
 ):
 
     results = []
-
     for collection_name in collection_names:
         try:
             # if you use docker use the model from the environment variable
@@ -82,13 +84,13 @@ def query_collection(
                 name=collection_name,
                 embedding_function=embedding_function,
             )
-
             result = collection.query(
                 query_texts=[query],
                 n_results=k,
             )
             results.append(result)
-        except:
+        except Exception as e:
+            log.exception(f"query_collection.error: {e}")
             pass
 
     return merge_and_sort_query_results(results, k)
@@ -129,7 +131,7 @@ def rag_messages(docs, messages, template, k, embedding_function):
         query = ""
 
     relevant_contexts = []
-
+    collection_docs = []
     for doc in docs:
         context = None
 
@@ -141,6 +143,7 @@ def rag_messages(docs, messages, template, k, embedding_function):
                     k=k,
                     embedding_function=embedding_function,
                 )
+                collection_docs.append(context)
             elif doc["type"] == "text":
                 context = doc["content"]
             else:
@@ -186,5 +189,44 @@ def rag_messages(docs, messages, template, k, embedding_function):
         }
 
     messages[last_user_message_idx] = new_user_message
+    return {"messages": messages, "documents": collection_docs}
 
-    return messages
+
+def get_embedding_model_path(
+    embedding_model: str, update_embedding_model: bool = False
+):
+    # Construct huggingface_hub kwargs with local_files_only to return the snapshot path
+    cache_dir = os.getenv("SENTENCE_TRANSFORMERS_HOME")
+
+    local_files_only = not update_embedding_model
+
+    snapshot_kwargs = {
+        "cache_dir": cache_dir,
+        "local_files_only": local_files_only,
+    }
+
+    log.debug(f"embedding_model: {embedding_model}")
+    log.debug(f"snapshot_kwargs: {snapshot_kwargs}")
+
+    # Inspiration from upstream sentence_transformers
+    if (
+        os.path.exists(embedding_model)
+        or ("\\" in embedding_model or embedding_model.count("/") > 1)
+        and local_files_only
+    ):
+        # If fully qualified path exists, return input, else set repo_id
+        return embedding_model
+    elif "/" not in embedding_model:
+        # Set valid repo_id for model short-name
+        embedding_model = "sentence-transformers" + "/" + embedding_model
+
+    snapshot_kwargs["repo_id"] = embedding_model
+
+    # Attempt to query the huggingface_hub library to determine the local path and/or to update
+    try:
+        embedding_model_repo_path = snapshot_download(**snapshot_kwargs)
+        log.debug(f"embedding_model_repo_path: {embedding_model_repo_path}")
+        return embedding_model_repo_path
+    except Exception as e:
+        log.exception(f"Cannot determine embedding model snapshot path: {e}")
+        return embedding_model

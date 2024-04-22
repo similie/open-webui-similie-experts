@@ -48,7 +48,7 @@
 	let messagesContainerElement: HTMLDivElement;
 	let currentRequestId = null;
 
-	let showModelSelector = false;
+	let showModelSelector = true;
 	let selectedModels = [''];
 
 	let selectedModelfile = null;
@@ -388,7 +388,6 @@
 						if (line !== '') {
 							console.log(line);
 							let data = JSON.parse(line);
-
 							if ('detail' in data) {
 								throw data;
 							}
@@ -424,6 +423,8 @@
 										eval_count: data.eval_count,
 										eval_duration: data.eval_duration
 									};
+									responseMessage.documents = data.documents;
+
 									messages = messages;
 
 									if ($settings.notificationEnabled && !document.hasFocus()) {
@@ -847,6 +848,7 @@
 		bind:selectedModels
 		bind:showModelSelector
 		shareEnabled={messages.length > 0}
+		{chat}
 		{initNewChat}
 		{tags}
 		{addTag}

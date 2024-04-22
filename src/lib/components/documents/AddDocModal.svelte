@@ -1,72 +1,38 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
-	import dayjs from 'dayjs';
-	import { onMount, getContext } from 'svelte';
-
-	import { createNewDoc, getDocs, tagDocByName, updateDocByName } from '$lib/apis/documents';
+	import { onMount, getContext, createEventDispatcher } from 'svelte';
 	import Modal from '../common/Modal.svelte';
-	import { documents } from '$lib/stores';
-	import TagInput from '../common/Tags/TagInput.svelte';
 	import Tags from '../common/Tags.svelte';
-	import { addTagById } from '$lib/apis/chats';
-	import { uploadDocToVectorDB } from '$lib/apis/rag';
-	import { transformFileName } from '$lib/utils';
 	import { SUPPORTED_FILE_EXTENSIONS, SUPPORTED_FILE_TYPE } from '$lib/constants';
-
+	const dispatch = createEventDispatcher();
 	const i18n = getContext('i18n');
 
 	export let show = false;
-	export let selectedDoc;
+
 	let uploadDocInputElement: HTMLInputElement;
 	let inputFiles;
-	let tags = [];
+	let tags: any[] = [];
 
-	let doc = {
-		name: '',
-		title: '',
-		content: null
-	};
-
-	const uploadDoc = async (file) => {
-		const res = await uploadDocToVectorDB(localStorage.token, '', file).catch((error) => {
-			toast.error(error);
-			return null;
-		});
-
-		if (res) {
-			await createNewDoc(
-				localStorage.token,
-				res.collection_name,
-				res.filename,
-				transformFileName(res.filename),
-				res.filename,
-				tags.length > 0
-					? {
-							tags: tags
-					  }
-					: null
-			).catch((error) => {
-				toast.error(error);
-				return null;
-			});
-			await documents.set(await getDocs(localStorage.token));
-		}
+	const uploadDoc = (content) => {
+		dispatch('doc', content);
 	};
 
 	const submitHandler = async () => {
 		if (inputFiles && inputFiles.length > 0) {
-			for (const file of inputFiles) {
+			const length = inputFiles.length;
+			for (let i = 0; i < length; i++) {
+				const file = inputFiles[i];
 				console.log(file, file.name.split('.').at(-1));
 				if (
 					SUPPORTED_FILE_TYPE.includes(file['type']) ||
 					SUPPORTED_FILE_EXTENSIONS.includes(file.name.split('.').at(-1))
 				) {
-					uploadDoc(file);
+					uploadDoc({ file, length, count: i });
 				} else {
 					toast.error(
 						`Unknown File Type '${file['type']}', but accepting and treating as plain text`
 					);
-					uploadDoc(file);
+					uploadDoc({ file, length, count: i });
 				}
 			}
 
@@ -77,7 +43,7 @@
 		}
 
 		show = false;
-		documents.set(await getDocs(localStorage.token));
+		// documents.set(await getDocs(localStorage.token));
 	};
 
 	const addTagHandler = async (tagName) => {

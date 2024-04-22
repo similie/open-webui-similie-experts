@@ -26,6 +26,7 @@ export const SUPPORTED_FILE_TYPE = [
 	'text/x-python',
 	'text/css',
 	'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+	'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 	'application/octet-stream',
 	'application/x-javascript',
 	'text/markdown',

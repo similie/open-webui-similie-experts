@@ -81,6 +81,12 @@ async def check_url(request: Request, call_next):
     return response
 
 
+@app.head("/")
+@app.get("/")
+async def get_status():
+    return {"status": True}
+
+
 @app.get("/urls")
 async def get_ollama_api_urls(user=Depends(get_admin_user)):
     return {"OLLAMA_BASE_URLS": app.state.OLLAMA_BASE_URLS}
@@ -121,7 +127,6 @@ async def fetch_url(url):
 
 def merge_models_lists(model_lists):
     merged_models = {}
-
     for idx, model_list in enumerate(model_lists):
         if model_list is not None:
             for model in model_list:
@@ -142,7 +147,6 @@ async def get_all_models():
     log.info("get_all_models()")
     tasks = [fetch_url(f"{url}/api/tags") for url in app.state.OLLAMA_BASE_URLS]
     responses = await asyncio.gather(*tasks)
-
     models = {
         "models": merge_models_lists(
             map(lambda response: response["models"] if response else None, responses)
@@ -209,7 +213,8 @@ async def get_ollama_versions(url_idx: Optional[int] = None):
 
         if len(responses) > 0:
             lowest_version = min(
-                responses, key=lambda x: tuple(map(int, x["version"].split(".")))
+                responses,
+                key=lambda x: tuple(map(int, x["version"].split("-")[0].split("."))),
             )
 
             return {"version": lowest_version["version"]}
@@ -414,7 +419,6 @@ async def create_model(
             def stream_content():
                 for chunk in r.iter_content(chunk_size=8192):
                     yield chunk
-
             r = requests.request(
                 method="POST",
                 url=f"{url}/api/create",
@@ -571,7 +575,7 @@ async def show_model_info(form_data: ModelNameForm, user=Depends(get_current_use
             data=form_data.model_dump_json(exclude_none=True).encode(),
         )
         r.raise_for_status()
-
+        print(r.json())
         return r.json()
     except Exception as e:
         log.exception(e)
@@ -663,7 +667,6 @@ async def generate_completion(
     url_idx: Optional[int] = None,
     user=Depends(get_current_user),
 ):
-
     if url_idx == None:
         if form_data.model in app.state.MODELS:
             url_idx = random.choice(app.state.MODELS[form_data.model]["urls"])
@@ -752,6 +755,7 @@ class GenerateChatCompletionForm(BaseModel):
     template: Optional[str] = None
     stream: Optional[bool] = None
     keep_alive: Optional[Union[int, str]] = None
+    documents: Optional[List[dict]] = None
 
 
 @app.post("/api/chat")
@@ -761,7 +765,6 @@ async def generate_chat_completion(
     url_idx: Optional[int] = None,
     user=Depends(get_current_user),
 ):
-
     if url_idx == None:
         if form_data.model in app.state.MODELS:
             url_idx = random.choice(app.state.MODELS[form_data.model]["urls"])
@@ -796,6 +799,17 @@ async def generate_chat_completion(
                         yield json.dumps({"id": request_id, "done": False}) + "\n"
 
                     for chunk in r.iter_content(chunk_size=8192):
+
+                        try:
+                          # here we are adding the documents to the response
+                          json_value = json.loads(chunk)
+                          if "done" in json_value and json_value["done"] == True:
+                              json_value["documents"] = form_data.documents
+                              chunk = json.dumps(json_value)
+                            
+                        except Exception as e:
+                            log.exception(e)
+                            
                         if request_id in REQUEST_POOL:
                             yield chunk
                         else:
@@ -803,6 +817,7 @@ async def generate_chat_completion(
                             break
                 finally:
                     if hasattr(r, "close"):
+                        
                         r.close()
                         if request_id in REQUEST_POOL:
                             REQUEST_POOL.remove(request_id)
@@ -865,7 +880,7 @@ async def generate_openai_chat_completion(
     url_idx: Optional[int] = None,
     user=Depends(get_current_user),
 ):
-
+    print("/v1/chat/completions", form_data)
     if url_idx == None:
         if form_data.model in app.state.MODELS:
             url_idx = random.choice(app.state.MODELS[form_data.model]["urls"])

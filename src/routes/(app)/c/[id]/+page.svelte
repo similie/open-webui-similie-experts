@@ -56,7 +56,7 @@
 	let currentRequestId = null;
 
 	// let chatId = $page.params.id;
-	let showModelSelector = false;
+	let showModelSelector = true;
 	let selectedModels = [''];
 	let selectedModelfile = null;
 
@@ -135,8 +135,6 @@
 			const chatContent = chat.chat;
 
 			if (chatContent) {
-				console.log(chatContent);
-
 				selectedModels =
 					(chatContent?.models ?? undefined) !== undefined
 						? chatContent.models
@@ -440,6 +438,7 @@
 										eval_count: data.eval_count,
 										eval_duration: data.eval_duration
 									};
+									responseMessage.documents = data.documents ?? null;
 									messages = messages;
 
 									if ($settings.notificationEnabled && !document.hasFocus()) {
@@ -865,6 +864,7 @@
 	<div class="min-h-screen max-h-screen w-full flex flex-col">
 		<Navbar
 			{title}
+			{chat}
 			bind:selectedModels
 			bind:showModelSelector
 			shareEnabled={messages.length > 0}

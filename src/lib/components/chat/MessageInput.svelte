@@ -10,6 +10,7 @@
 	import AddFilesPlaceholder from '../AddFilesPlaceholder.svelte';
 	import { SUPPORTED_FILE_TYPE, SUPPORTED_FILE_EXTENSIONS } from '$lib/constants';
 	import Documents from './MessageInput/Documents.svelte';
+	import DocumentCollections from './MessageInput/DocumentCollections.svelte';
 	import Models from './MessageInput/Models.svelte';
 	import { transcribeAudio } from '$lib/apis/audio';
 	import Tooltip from '../common/Tooltip.svelte';
@@ -249,7 +250,6 @@
 			}
 
 			const res = await uploadDocToVectorDB(localStorage.token, '', file);
-
 			if (res) {
 				doc.upload_status = true;
 				doc.collection_name = res.collection_name;
@@ -277,7 +277,6 @@
 		try {
 			files = [...files, doc];
 			const res = await uploadWebToVectorDB(localStorage.token, '', url);
-
 			if (res) {
 				doc.upload_status = true;
 				doc.collection_name = res.collection_name;
@@ -294,6 +293,13 @@
 		window.setTimeout(() => chatTextAreaElement?.focus(), 0);
 
 		const dropZone = document.querySelector('body');
+
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') {
+				console.log('Escape');
+				dragged = false;
+			}
+		};
 
 		const onDragOver = (e) => {
 			e.preventDefault();
@@ -350,11 +356,15 @@
 			dragged = false;
 		};
 
+		window.addEventListener('keydown', handleKeyDown);
+
 		dropZone?.addEventListener('dragover', onDragOver);
 		dropZone?.addEventListener('drop', onDrop);
 		dropZone?.addEventListener('dragleave', onDragLeave);
 
 		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
+
 			dropZone?.removeEventListener('dragover', onDragOver);
 			dropZone?.removeEventListener('drop', onDrop);
 			dropZone?.removeEventListener('dragleave', onDragLeave);
@@ -413,7 +423,7 @@
 				{#if prompt.charAt(0) === '/'}
 					<Prompts bind:this={promptsElement} bind:prompt />
 				{:else if prompt.charAt(0) === '#'}
-					<Documents
+					<DocumentCollections
 						bind:this={documentsElement}
 						bind:prompt
 						on:url={(e) => {

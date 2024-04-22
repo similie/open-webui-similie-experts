@@ -4,7 +4,7 @@ from playhouse.shortcuts import model_to_dict
 from typing import List, Union, Optional
 import time
 
-from utils.utils import decode_token
+from utils.utils import decode_token, split_string_to_array, save_array_to_string
 from utils.misc import get_gravatar_url
 
 from apps.web.internal.db import DB
@@ -21,7 +21,8 @@ class Modelfile(Model):
     user_id = CharField()
     modelfile = TextField()
     timestamp = DateField()
-
+    # has_collection = BooleanField(default=False)
+    # collections = TextField(null=True) 
     class Meta:
         database = DB
 
@@ -31,7 +32,8 @@ class ModelfileModel(BaseModel):
     user_id: str
     modelfile: str
     timestamp: int  # timestamp in epoch
-
+    # has_collection: bool 
+    # collections: Optional[List[str]] = None
 
 ####################
 # Forms
@@ -40,7 +42,6 @@ class ModelfileModel(BaseModel):
 
 class ModelfileForm(BaseModel):
     modelfile: dict
-
 
 class ModelfileTagNameForm(BaseModel):
     tag_name: str
@@ -55,7 +56,9 @@ class ModelfileResponse(BaseModel):
     user_id: str
     modelfile: dict
     timestamp: int  # timestamp in epoch
-
+    # has_collection: bool 
+    # collections: Optional[List[str]] = None
+    
 
 class ModelfilesTable:
 
@@ -91,7 +94,10 @@ class ModelfilesTable:
     def get_modelfile_by_tag_name(self, tag_name: str) -> Optional[ModelfileModel]:
         try:
             modelfile = Modelfile.get(Modelfile.tag_name == tag_name)
-            return ModelfileModel(**model_to_dict(modelfile))
+            return ModelfileModel(**{
+                                    **model_to_dict(modelfile),
+                                    #  "collections": save_array_to_string(modelfile.collections) if modelfile.collections else None,
+                                     })
         except:
             return None
 
@@ -101,6 +107,7 @@ class ModelfilesTable:
                 **{
                     **model_to_dict(modelfile),
                     "modelfile": json.loads(modelfile.modelfile),
+                    # "collections": save_array_to_string(modelfile.collections) if modelfile.collections else None,
                 }
             )
             for modelfile in Modelfile.select()
@@ -119,7 +126,10 @@ class ModelfilesTable:
             query.execute()
 
             modelfile = Modelfile.get(Modelfile.tag_name == tag_name)
-            return ModelfileModel(**model_to_dict(modelfile))
+            return ModelfileModel(**{
+                                    **model_to_dict(modelfile),
+                                    #  "collections": save_array_to_string(modelfile.collections) if modelfile.collections else None,
+                                     })
         except:
             return None
 
@@ -131,6 +141,17 @@ class ModelfilesTable:
             return True
         except:
             return False
+        
+    
 
 
 Modelfiles = ModelfilesTable(DB)
+
+
+def get_collection_from_modelfile(tag_name: str) -> Optional[List[str]]:
+        modelfile = Modelfiles.get_modelfile_by_tag_name(tag_name)
+        jsonValue = json.loads(modelfile.modelfile);
+        if jsonValue['collections']:
+            return jsonValue['collections']
+        else:
+            return None

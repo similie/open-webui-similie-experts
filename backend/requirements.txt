@@ -14,9 +14,12 @@ uuid
 requests
 aiohttp
 peewee
+peewee-migrate
 bcrypt
 
 litellm==1.30.7
+boto3
+
 argon2-cffi
 apscheduler
 google-generativeai
@@ -35,9 +38,11 @@ pandas
 openpyxl
 pyxlsb
 xlrd
-
+python-pptx
 opencv-python-headless
 rapidocr-onnxruntime
+
+fpdf2
 
 faster-whisper
 

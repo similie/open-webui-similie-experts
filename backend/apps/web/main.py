@@ -10,6 +10,7 @@ from apps.web.routers import (
     prompts,
     configs,
     utils,
+    collection
 )
 from config import (
     WEBUI_VERSION,
@@ -20,6 +21,7 @@ from config import (
     ENABLE_SIGNUP,
     USER_PERMISSIONS,
     WEBHOOK_URL,
+    WEBUI_AUTH_TRUSTED_EMAIL_HEADER,
 )
 
 app = FastAPI()
@@ -34,7 +36,7 @@ app.state.DEFAULT_PROMPT_SUGGESTIONS = DEFAULT_PROMPT_SUGGESTIONS
 app.state.DEFAULT_USER_ROLE = DEFAULT_USER_ROLE
 app.state.USER_PERMISSIONS = USER_PERMISSIONS
 app.state.WEBHOOK_URL = WEBHOOK_URL
-
+app.state.AUTH_TRUSTED_EMAIL_HEADER = WEBUI_AUTH_TRUSTED_EMAIL_HEADER
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,7 +52,7 @@ app.include_router(chats.router, prefix="/chats", tags=["chats"])
 app.include_router(documents.router, prefix="/documents", tags=["documents"])
 app.include_router(modelfiles.router, prefix="/modelfiles", tags=["modelfiles"])
 app.include_router(prompts.router, prefix="/prompts", tags=["prompts"])
-
+app.include_router(collection.router, prefix="/collections", tags=["collections"])
 app.include_router(configs.router, prefix="/configs", tags=["configs"])
 app.include_router(utils.router, prefix="/utils", tags=["utils"])
 

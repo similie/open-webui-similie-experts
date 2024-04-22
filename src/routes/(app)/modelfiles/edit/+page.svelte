@@ -11,6 +11,7 @@
 
 	import { createModel } from '$lib/apis/ollama';
 	import { getModelfiles, updateModelfileByTagName } from '$lib/apis/modelfiles';
+	import CollectionCheckBoxes from '$lib/components/collections/CollectionCheckBoxes.svelte';
 
 	import AdvancedParams from '$lib/components/chat/Settings/Advanced/AdvancedParams.svelte';
 
@@ -29,7 +30,7 @@
 	// ///////////
 	// Modelfile
 	// ///////////
-
+	let collections = [];
 	let title = '';
 	let tagName = '';
 	let desc = '';
@@ -67,6 +68,7 @@
 			title = modelfile.title;
 			desc = modelfile.desc;
 			content = modelfile.content;
+			collections = modelfile.collections || [];
 			suggestions =
 				modelfile.suggestionPrompts.length != 0
 					? modelfile.suggestionPrompts
@@ -172,7 +174,8 @@
 					desc: desc,
 					content: content,
 					suggestionPrompts: suggestions.filter((prompt) => prompt.content !== ''),
-					categories: Object.keys(categories).filter((category) => categories[category])
+					categories: Object.keys(categories).filter((category) => categories[category]),
+					collections: collections
 				});
 				await goto('/modelfiles');
 			}
@@ -451,6 +454,11 @@
 							</div>
 						{/each}
 					</div>
+				</div>
+
+				<div class="my-2">
+					<div class=" text-sm font-semibold mb-2">{$i18n.t('Collections')}</div>
+					<CollectionCheckBoxes bind:collections />
 				</div>
 
 				{#if pullProgress !== null}

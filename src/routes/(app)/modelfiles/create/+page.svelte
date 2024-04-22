@@ -9,6 +9,7 @@
 	import { onMount, tick, getContext } from 'svelte';
 	import { createModel } from '$lib/apis/ollama';
 	import { createNewModelfile, getModelfileByTagName, getModelfiles } from '$lib/apis/modelfiles';
+	import CollectionCheckBoxes from '$lib/components/collections/CollectionCheckBoxes.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -31,7 +32,7 @@
 
 	let raw = true;
 	let advanced = false;
-
+	let collections = [];
 	// Raw Mode
 	let content = '';
 
@@ -223,7 +224,8 @@ SYSTEM """${system}"""`.replace(/^\s*\n/gm, '');
 				].includes(event.origin)
 			)
 				return;
-			const modelfile = JSON.parse(event.data);
+			const data = event.data || {};
+			const modelfile = JSON.parse(data);
 			console.log(modelfile);
 
 			imageUrl = modelfile.imageUrl;
@@ -663,6 +665,11 @@ SYSTEM """${system}"""`.replace(/^\s*\n/gm, '');
 							</div>
 						{/each}
 					</div>
+				</div>
+
+				<div class="my-2">
+					<div class=" text-sm font-semibold mb-2">{$i18n.t('Collections')}</div>
+					<CollectionCheckBoxes bind:collections />
 				</div>
 
 				{#if pullProgress !== null}
