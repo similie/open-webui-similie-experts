@@ -764,6 +764,7 @@ def scan_docs_dir(user=Depends(get_admin_user),models=Depends(get_all_models)):
 @app.get("/reset/db")
 def reset_vector_db(user=Depends(get_admin_user)):
     CHROMA_CLIENT.reset()
+    Documents.delete_all_docs()
 
 
 @app.get("/reset")
@@ -781,6 +782,7 @@ def reset(user=Depends(get_admin_user)) -> bool:
 
     try:
         CHROMA_CLIENT.reset()
+        Documents.delete_all_docs()
     except Exception as e:
         log.exception(e)
 
