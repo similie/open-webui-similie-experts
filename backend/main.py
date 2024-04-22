@@ -17,8 +17,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from apps.web.models.collections import build_collections_as_dict, build_collections_as_json
 from apps.web.models.modelfiles import get_collection_from_modelfile
-from apps.ollama.main import app as ollama_app
+from apps.ollama.main import app as ollama_app, get_all_models
 from apps.openai.main import app as openai_app
+
 
 from apps.litellm.main import app as litellm_app, startup as litellm_app_startup
 from apps.audio.main import app as audio_app
@@ -97,7 +98,7 @@ class RAGMiddleware(BaseHTTPMiddleware):
             "/api/chat" in request.url.path or "/chat/completions" in request.url.path
         ): 
             log.debug(f"request.url.path: {request.url.path}")
-            
+            await get_all_models()
             # Read the original request body
             body = await request.body()
             # Decode body to string
@@ -114,7 +115,7 @@ class RAGMiddleware(BaseHTTPMiddleware):
                 else:
                     for doc in documents:
                         data["docs"].append(doc)
-            print('I HAVE THESE DOCUMENTS', data["docs"])
+            # print('I HAVE THESE DOCUMENTS', data["docs"])
             
             if "docs" in data:
                 data = {**data}
@@ -123,7 +124,11 @@ class RAGMiddleware(BaseHTTPMiddleware):
                     data["messages"],
                     rag_app.state.RAG_TEMPLATE,
                     rag_app.state.TOP_K,
+                    rag_app.state.RAG_EMBEDDING_ENGINE,
+                    rag_app.state.RAG_EMBEDDING_MODEL,
                     rag_app.state.sentence_transformer_ef,
+                    rag_app.state.OPENAI_API_KEY,
+                    rag_app.state.OPENAI_API_BASE_URL,
                 )
                 data["documents"] = rag_response["documents"]
                 data["messages"] = rag_response["messages"]

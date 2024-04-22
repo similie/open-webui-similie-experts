@@ -72,6 +72,7 @@ REQUEST_POOL = []
 
 @app.middleware("http")
 async def check_url(request: Request, call_next):
+    print('FUCKI MESERWEREW', len(app.state.MODELS) , app.state.MODELS)
     if len(app.state.MODELS) == 0:
         await get_all_models()
     else:
@@ -609,8 +610,16 @@ async def generate_embeddings(
     user=Depends(get_current_user),
 ):
     if url_idx == None:
-        if form_data.model in app.state.MODELS:
-            url_idx = random.choice(app.state.MODELS[form_data.model]["urls"])
+        model = form_data.model
+        print(" I AM AJSDFJG",len(app.state.MODELS), model)
+        if len(app.state.MODELS) == 0:
+            await get_all_models()
+
+        if ":" not in model:
+            model = f"{model}:latest"
+
+        if model in app.state.MODELS:
+            url_idx = random.choice(app.state.MODELS[model]["urls"])
         else:
             raise HTTPException(
                 status_code=400,
@@ -646,6 +655,64 @@ async def generate_embeddings(
         )
 
 
+def generate_ollama_embeddings(
+    form_data: GenerateEmbeddingsForm,
+    url_idx: Optional[int] = None,
+):
+
+    log.info(f"generate_ollama_embeddings {form_data}")
+    
+    if len(app.state.MODELS) == 0:
+        get_all_models()
+    
+    if url_idx == None:
+        model = form_data.model
+        print("MY MOSWL",len(app.state.MODELS), model, app.state.MODELS)
+        if ":" not in model:
+            model = f"{model}:latest"
+
+        if model in app.state.MODELS:
+            url_idx = random.choice(app.state.MODELS[model]["urls"])
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=ERROR_MESSAGES.MODEL_NOT_FOUND(form_data.model),
+            )
+
+    url = app.state.OLLAMA_BASE_URLS[url_idx]
+    log.info(f"url: {url}")
+    print('MY URL', url)
+    try:
+        print('form data', form_data)
+        r = requests.request(
+            method="POST",
+            url=f"{url}/api/embeddings",
+            data=form_data.model_dump_json(exclude_none=True).encode(),
+        )
+        r.raise_for_status()
+
+        data = r.json()
+        print("my data", data)
+        log.info(f"generate_ollama_embeddings {data}")
+
+        if "embedding" in data:
+            return data["embedding"]
+        else:
+            raise "Something went wrong :/"
+    except Exception as e:
+        log.exception(e)
+        error_detail = "Open WebUI: Server Connection Error"
+        if r is not None:
+            try:
+                res = r.json()
+                if "error" in res:
+                    error_detail = f"Ollama: {res['error']}"
+            except:
+                error_detail = f"Ollama: {e}"
+
+        raise error_detail
+
+
 class GenerateCompletionForm(BaseModel):
     model: str
     prompt: str
@@ -668,8 +735,13 @@ async def generate_completion(
     user=Depends(get_current_user),
 ):
     if url_idx == None:
-        if form_data.model in app.state.MODELS:
-            url_idx = random.choice(app.state.MODELS[form_data.model]["urls"])
+        model = form_data.model
+
+        if ":" not in model:
+            model = f"{model}:latest"
+
+        if model in app.state.MODELS:
+            url_idx = random.choice(app.state.MODELS[model]["urls"])
         else:
             raise HTTPException(
                 status_code=400,
@@ -766,8 +838,13 @@ async def generate_chat_completion(
     user=Depends(get_current_user),
 ):
     if url_idx == None:
-        if form_data.model in app.state.MODELS:
-            url_idx = random.choice(app.state.MODELS[form_data.model]["urls"])
+        model = form_data.model
+
+        if ":" not in model:
+            model = f"{model}:latest"
+
+        if model in app.state.MODELS:
+            url_idx = random.choice(app.state.MODELS[model]["urls"])
         else:
             raise HTTPException(
                 status_code=400,
@@ -882,8 +959,13 @@ async def generate_openai_chat_completion(
 ):
     print("/v1/chat/completions", form_data)
     if url_idx == None:
-        if form_data.model in app.state.MODELS:
-            url_idx = random.choice(app.state.MODELS[form_data.model]["urls"])
+        model = form_data.model
+
+        if ":" not in model:
+            model = f"{model}:latest"
+
+        if model in app.state.MODELS:
+            url_idx = random.choice(app.state.MODELS[model]["urls"])
         else:
             raise HTTPException(
                 status_code=400,
