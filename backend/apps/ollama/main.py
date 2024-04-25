@@ -72,7 +72,6 @@ REQUEST_POOL = []
 
 @app.middleware("http")
 async def check_url(request: Request, call_next):
-    print('FUCKI MESERWEREW', len(app.state.MODELS) , app.state.MODELS)
     if len(app.state.MODELS) == 0:
         await get_all_models()
     else:
