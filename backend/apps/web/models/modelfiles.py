@@ -150,6 +150,8 @@ Modelfiles = ModelfilesTable(DB)
 
 def get_collection_from_modelfile(tag_name: str) -> Optional[List[str]]:
         modelfile = Modelfiles.get_modelfile_by_tag_name(tag_name)
+        if not modelfile:
+            return None
         jsonValue = json.loads(modelfile.modelfile);
         if jsonValue['collections']:
             return jsonValue['collections']
